@@ -3,6 +3,7 @@ from .vision_process import (
     fetch_image,
     fetch_video,
     fetch_audio,
+    process_vision_info,
     process_audio_info,
     smart_resize,
 )
