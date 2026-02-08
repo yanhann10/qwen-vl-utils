@@ -10,7 +10,9 @@ import torch
 from PIL import Image
 from torchvision import io, transforms
 from torchvision.transforms import InterpolationMode
-
+import io
+import librosa
+import numpy as np
 
 IMAGE_FACTOR = 28
 MIN_PIXELS = 4 * 28 * 28
@@ -218,23 +220,45 @@ def extract_vision_info(conversations: list[dict] | list[list[dict]]) -> list[di
                         vision_infos.append(ele)
     return vision_infos
 
+# def process_audio_info(
+#     msgs: list[dict] | list[list[dict]],
+# ) -> tuple[list[Image.Image] | None, list[torch.Tensor | list[Image.Image]] | None]:
+    
+#     ## Read audio
+#     audios = []
+#     for msg in msgs:
+#         audio_bytes = msg[0]['content'][0].get('audio','')
+#         audios.append(audio_bytes)
+#     return audios
 
-def process_vision_info(
-    conversations: list[dict] | list[list[dict]],
-) -> tuple[list[Image.Image] | None, list[torch.Tensor | list[Image.Image]] | None]:
-    vision_infos = extract_vision_info(conversations)
-    ## Read images or videos
-    image_inputs = []
-    video_inputs = []
-    for vision_info in vision_infos:
-        if "image" in vision_info or "image_url" in vision_info:
-            image_inputs.append(fetch_image(vision_info))
-        elif "video" in vision_info:
-            video_inputs.append(fetch_video(vision_info))
-        else:
-            raise ValueError("image, image_url or video should in content.")
-    if len(image_inputs) == 0:
-        image_inputs = None
-    if len(video_inputs) == 0:
-        video_inputs = None
-    return image_inputs, video_inputs
+
+def fetch_audio(audio_data) -> np.ndarray:
+    """Convert audio bytes  to numpy array at 16kHz.
+
+    Args:
+        audio_data: raw bytes (from dataset), file path str, or numpy array
+
+    Returns:
+        1-D numpy array, float32, 16kHz sample rate
+    """
+    if isinstance(audio_data, bytes):
+        buf = io.BytesIO(audio_data)
+        y, _ = librosa.load(buf, sr=16000)
+        return y
+    if isinstance(audio_data, str):
+        y, _ = librosa.load(audio_data, sr=16000)
+        return y
+    raise ValueError(f"Unsupported audio_data type: {type(audio_data)}")
+
+
+def process_audio_info(conversations) -> list[np.ndarray]:
+    audios = []
+    for msg in conversations:
+        if not isinstance(msg.get("content"), list):
+            continue
+        for content in msg["content"]:
+            if content.get("type") == "audio" or "audio" in content:
+                audio_data = content.get("audio")
+                if audio_data is not None:
+                    audios.append(fetch_audio(audio_data))
+    return audios
